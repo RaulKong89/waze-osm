@@ -1,4 +1,4 @@
-name: Build Waze OSM IPA
+name: Build Waze OSM IPA with TLSFix
 
 on:
   push:
@@ -20,9 +20,47 @@ jobs:
         mkdir -p /tmp/sdk
         curl -L -o /tmp/sdk/iPhoneOS6.1.sdk.zip "https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip"
         unzip -q /tmp/sdk/iPhoneOS6.1.sdk.zip -d /tmp/sdk/
-        ls -la /tmp/sdk/
         
-    - name: Build dylib with clang
+    - name: Clone TLSFix
+      run: |
+        cd /tmp
+        git clone --depth 1 https://github.com/nfzerox/TLSFix.git
+        ls TLSFix/
+        
+    - name: Build TLSFix dylib
+      run: |
+        cd /tmp/TLSFix
+        # Build using Theos-style compilation
+        SDK=/tmp/sdk/iPhoneOS6.1.sdk
+        
+        # Compile the engine
+        clang -arch armv7 \
+          -isysroot $SDK \
+          -miphoneos-version-min=6.0 \
+          -c src/tlsfix_engine.c \
+          -o /tmp/tlsfix_engine.o
+          
+        # Compile the hooks
+        clang -arch armv7 \
+          -isysroot $SDK \
+          -miphoneos-version-min=6.0 \
+          -c src/tlsfix_hooks.c \
+          -o /tmp/tlsfix_hooks.o
+          
+        # Link into dylib
+        clang -arch armv7 \
+          -isysroot $SDK \
+          -miphoneos-version-min=6.0 \
+          -dynamiclib \
+          -install_name /Library/MobileSubstrate/DynamicLibraries/TLSFix.dylib \
+          -o /tmp/TLSFix.dylib \
+          /tmp/tlsfix_engine.o /tmp/tlsfix_hooks.o \
+          -framework Foundation -framework Security -framework CoreFoundation
+          
+        ls -la /tmp/TLSFix.dylib
+        file /tmp/TLSFix.dylib
+        
+    - name: Build WazeOSM dylib
       working-directory: waze-osm-tweak
       run: |
         SDK=/tmp/sdk/iPhoneOS6.1.sdk
@@ -40,7 +78,7 @@ jobs:
           -install_name @executable_path/WazeOSM.dylib \
           -o WazeOSM.dylib \
           Tweak.xm 2>&1
-        
+          
         ls -la WazeOSM.dylib
         file WazeOSM.dylib
         
@@ -48,26 +86,26 @@ jobs:
       run: |
         curl -L -o waze.ipa "https://github.com/RaulKong89/waze-osm/releases/download/v0.1.0/waze_3.9.6.ipa"
         ls -la waze.ipa
-        file waze.ipa
         
-    - name: Inject dylib into IPA
+    - name: Inject dylibs into IPA
       run: |
         python3 waze-osm-tweak/inject_dylib.py waze.ipa waze-osm-tweak/WazeOSM.dylib -o Waze-OSM-3.9.6.ipa
-        ls -la Waze-OSM-3.9.6.ipa
+        python3 waze-osm-tweak/inject_dylib.py Waze-OSM-3.9.6.ipa /tmp/TLSFix.dylib -o Waze-OSM-TLS-3.9.6.ipa
+        ls -la Waze-OSM-TLS-3.9.6.ipa
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Waze-OSM-3.9.6.ipa
-        path: Waze-OSM-3.9.6.ipa
+        name: Waze-OSM-TLS-3.9.6.ipa
+        path: Waze-OSM-TLS-3.9.6.ipa
         
     - name: Create Release
       if: github.event_name == 'push'
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ github.run_number }}
-        name: Waze OSM v${{ github.run_number }}
-        body: "Waze 3.9.6 with OpenStreetMap. iOS 6+ compatible. Jailbreak required."
-        files: Waze-OSM-3.9.6.ipa
+        name: Waze OSM TLS v${{ github.run_number }}
+        body: "Waze 3.9.6 cu OpenStreetMap tiles + TLSFix pentru iOS 6+. Jailbreak required."
+        files: Waze-OSM-TLS-3.9.6.ipa
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
