@@ -48,6 +48,7 @@ jobs:
       run: |
         curl -L -o waze.ipa "https://archive.org/download/waze_3.9.6_ios_6.0/waze_3.9.6.ipa"
         ls -la waze.ipa
+        file waze.ipa
         
     - name: Inject dylib into IPA
       run: |
