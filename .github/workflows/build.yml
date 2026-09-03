@@ -58,7 +58,7 @@ jobs:
           -o Waze-OSM-3.9.6.ipa
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Waze-OSM-3.9.6.ipa
         path: Waze-OSM-3.9.6.ipa
