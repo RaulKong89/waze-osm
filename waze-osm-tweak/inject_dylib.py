@@ -147,7 +147,7 @@ class IPAInjector:
         cmdsize = 24 + len(dylib_name)  # 24 = size of dylib_command struct
         
         # Build the command
-        new_cmd = struct.pack('<IIIIIII',
+        new_cmd = struct.pack('<IIIIII',
             0xC,                    # LC_LOAD_DYLIB
             cmdsize,                # total size
             24,                     # name offset
