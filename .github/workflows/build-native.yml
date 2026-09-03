@@ -20,6 +20,12 @@ jobs:
     - name: Install ldid
       run: brew install ldid
         
+    - name: Install dm.pl
+      run: |
+        brew install perl
+        curl -L -o $HOME/theos/bin/dm.pl "https://raw.githubusercontent.com/theos/theos/master/bin/dm.pl"
+        chmod +x $HOME/theos/bin/dm.pl
+        
     - name: Download iOS 6.1 SDK
       run: |
         mkdir -p $HOME/theos/sdks
