@@ -1,0 +1,13 @@
+Package: com.waze.osm
+Name: WazeOSM
+Version: 1.0.0
+Description: Redirect Google Maps tiles to OpenStreetMap in Waze
+Author: Waze OSM Team
+Section: Tweaks
+Depends: mobilesubstrate
+Architecture: iphoneos-arm
+Maintainer: Waze OSM Team
+Depiction: https://github.com/waze-osm/waze-osm
+SileoDepiction: https://github.com/waze-osm/waze-osm
+Icon: file:///Library/Application%20Support/WazeOSM/icon.png
+Tag: role::developer
