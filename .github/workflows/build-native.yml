@@ -23,16 +23,15 @@ jobs:
         ls /tmp/sdk/
         
     - name: Compile
-      working-directory: waze-osm-native
       run: |
         SDK=/tmp/sdk/iPhoneOS6.1.sdk
-        INC="-I Classes -I $SDK/usr/include"
+        INC="-I $GITHUB_WORKSPACE/waze-osm-native/Classes -I $SDK/usr/include"
         CC="clang -arch armv7 -isysroot $SDK -miphoneos-version-min=6.0 $INC"
         
-        $CC -fno-objc-arc -c main.m -o /tmp/main.o
-        $CC -fno-objc-arc -c Classes/WazeAppDelegate.m -o /tmp/WazeAppDelegate.o
-        $CC -fno-objc-arc -c Classes/WazeMapViewController.m -o /tmp/WazeMapViewController.o
-        $CC -fno-objc-arc -c Classes/WazeOSMServerClient.m -o /tmp/WazeOSMServerClient.o
+        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/main.m -o /tmp/main.o
+        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/Classes/WazeAppDelegate.m -o /tmp/WazeAppDelegate.o
+        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/Classes/WazeMapViewController.m -o /tmp/WazeMapViewController.o
+        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/Classes/WazeOSMServerClient.m -o /tmp/WazeOSMServerClient.o
         
         # Link using Apple's ld
         /usr/bin/ld -arch armv7 -ios_version_min 6.0 \
@@ -50,7 +49,7 @@ jobs:
       run: |
         mkdir -p /tmp/Payload/WazeOSM.app
         cp /tmp/WazeOSM /tmp/Payload/WazeOSM.app/WazeOSM
-        cp waze-osm-native/Resources/Info.plist /tmp/Payload/WazeOSM.app/Info.plist
+        cp $GITHUB_WORKSPACE/waze-osm-native/Resources/Info.plist /tmp/Payload/WazeOSM.app/Info.plist
         
         # Sign
         ldid -S /tmp/Payload/WazeOSM.app/WazeOSM
