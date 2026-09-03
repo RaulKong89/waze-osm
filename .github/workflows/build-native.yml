@@ -26,15 +26,16 @@ jobs:
       working-directory: waze-osm-native
       run: |
         SDK=/tmp/sdk/iPhoneOS6.1.sdk
-        CC="clang -arch armv7 -isysroot $SDK -miphoneos-version-min=6.0 -I Classes"
+        INC="-I Classes -I $SDK/usr/include"
+        CC="clang -arch armv7 -isysroot $SDK -miphoneos-version-min=6.0 $INC"
         
         $CC -fno-objc-arc -c main.m -o /tmp/main.o
         $CC -fno-objc-arc -c Classes/WazeAppDelegate.m -o /tmp/WazeAppDelegate.o
         $CC -fno-objc-arc -c Classes/WazeMapViewController.m -o /tmp/WazeMapViewController.o
         $CC -fno-objc-arc -c Classes/WazeOSMServerClient.m -o /tmp/WazeOSMServerClient.o
         
-        # Link
-        ld -arch armv7 -ios_version_min 6.0 \
+        # Link using Apple's ld
+        /usr/bin/ld -arch armv7 -ios_version_min 6.0 \
           -o /tmp/WazeOSM \
           /tmp/main.o /tmp/WazeAppDelegate.o /tmp/WazeMapViewController.o /tmp/WazeOSMServerClient.o \
           -syslibroot $SDK \
@@ -46,11 +47,10 @@ jobs:
         file /tmp/WazeOSM
         
     - name: Create IPA
-      working-directory: waze-osm-native
       run: |
         mkdir -p /tmp/Payload/WazeOSM.app
         cp /tmp/WazeOSM /tmp/Payload/WazeOSM.app/WazeOSM
-        cp Resources/Info.plist /tmp/Payload/WazeOSM.app/Info.plist
+        cp waze-osm-native/Resources/Info.plist /tmp/Payload/WazeOSM.app/Info.plist
         
         # Sign
         ldid -S /tmp/Payload/WazeOSM.app/WazeOSM
