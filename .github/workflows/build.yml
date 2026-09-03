@@ -1,0 +1,78 @@
+name: Build & Release Waze OSM IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Theos
+      run: |
+        brew install ldid
+        git clone https://github.com/theos/theos.git $HOME/theos
+        echo "$HOME/theos/bin" >> $GITHUB_PATH
+    
+    - name: Download iOS 6.1 SDK
+      run: |
+        mkdir -p $HOME/theos/sdks
+        curl -L -o $HOME/theos/sdks/iPhoneOS6.1.sdk.tar.xz \
+          "https://github.com/xybp888/iOS-SDKs/releases/download/iOS-SDKs/iPhoneOS6.1.sdk.tar.xz"
+        tar -xf $HOME/theos/sdks/iPhoneOS6.1.sdk.tar.xz -C $HOME/theos/sdks/
+        ls -la $HOME/theos/sdks/
+    
+    - name: Create Makefile
+      run: |
+        cd waze-osm-tweak
+        echo "export THEOS=$HOME/theos" > Makefile
+        echo "export SDK_VERSION=6.1" >> Makefile
+        echo "export ARCHS=armv7" >> Makefile
+        echo "export TARGET=iphone:clang:6.1:6.1" >> Makefile
+        echo "include $(THEOS)/makefiles/common.mk" >> Makefile
+        echo "TWEAK_NAME=WazeOSM" >> Makefile
+        echo "WazeOSM_FILES=Tweak.xm" >> Makefile
+        echo "WazeOSM_FRAMEWORKS=Foundation UIKit CoreGraphics CoreLocation" >> Makefile
+        echo "include $(THEOS)/makefiles/tweak.mk" >> Makefile
+        cat Makefile
+    
+    - name: Build WazeOSM dylib
+      run: |
+        cd waze-osm-tweak
+        make clean
+        make
+    
+    - name: Download Waze IPA
+      run: |
+        curl -L -o waze.ipa \
+          "https://archive.org/download/waze_3.9.6_ios_6.0/waze_3.9.6.ipa"
+    
+    - name: Inject dylib into IPA
+      run: |
+        python3 waze-osm-tweak/inject_dylib.py waze.ipa \
+          waze-osm-tweak/.theos/obj/debug/armv7/WazeOSM.dylib \
+          -o Waze-OSM-3.9.6.ipa
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Waze-OSM-3.9.6.ipa
+        path: Waze-OSM-3.9.6.ipa
+    
+    - name: Create Release
+      if: github.event_name == 'push'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.run_number }}
+        name: Waze OSM v${{ github.run_number }}
+        body: |
+          Waze 3.9.6 with OpenStreetMap tiles
+          - iOS 6+ compatible
+          - Requires jailbreak with Cydia Substrate
+        files: Waze-OSM-3.9.6.ipa
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
