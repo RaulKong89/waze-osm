@@ -7,36 +7,31 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.04
+    runs-on: macos-latest
     
     steps:
     - uses: actions/checkout@v4
     
     - name: Install dependencies
       run: |
-        apt-get update && apt-get install -y build-essential clang git python3 unzip zip curl
-        ln -sf /usr/bin/clang /usr/bin/clang++
+        brew install ldid git
         
     - name: Clone Theos
       run: |
-        set -e
-        rm -rf ~/theos
-        git clone --depth 1 https://github.com/theos/theos.git ~/theos
+        rm -rf $HOME/theos
+        git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
+        echo "$HOME/theos/bin" >> $GITHUB_PATH
         
-    - name: Update Theos (download vendor)
+    - name: Install vendor headers
       run: |
-        export PATH=~/theos/bin:$PATH
-        cd ~/theos
-        ./bin/update-theos
-        ls -la ~/theos/vendor/ | head -5
+        git clone --depth 1 https://github.com/theos/vendor.git /tmp/theos-vendor
+        cp -r /tmp/theos-vendor $HOME/theos/vendor
+        ls $HOME/theos/vendor/ | head -5
         
     - name: Download iOS 6.1 SDK
       run: |
-        set -e
-        mkdir -p ~/theos/sdks
-        cd ~/theos/sdks
+        mkdir -p $HOME/theos/sdks
+        cd $HOME/theos/sdks
         curl -L -o iPhoneOS6.1.sdk.zip "https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip"
         unzip -q iPhoneOS6.1.sdk.zip
         ls -la
@@ -45,8 +40,10 @@ jobs:
       working-directory: waze-osm-tweak
       run: |
         python3 << 'PYEOF'
+        import os
+        home = os.environ.get('HOME', '/Users/runner')
         with open('Makefile', 'w') as f:
-            f.write('THEOS = $(HOME)/theos\n')
+            f.write(f'THEOS = {home}/theos\n')
             f.write('SDK_VERSION = 6.1\n')
             f.write('ARCHS = armv7\n')
             f.write('TARGET = iphone:clang:6.1:6.1\n')
@@ -56,15 +53,20 @@ jobs:
             f.write('WazeOSM_FRAMEWORKS = Foundation UIKit CoreGraphics CoreLocation\n')
             f.write('include $(THEOS)/makefiles/tweak.mk\n')
         print("Makefile created")
+        print(open('Makefile').read())
         PYEOF
-        cat Makefile
         
-    - name: Build dylib
+    - name: Build WazeOSM dylib
       working-directory: waze-osm-tweak
       run: |
-        export THEOS=~/theos
+        export THEOS=$HOME/theos
         make clean
         make
+        
+    - name: Verify dylib
+      run: |
+        ls -la waze-osm-tweak/.theos/obj/debug/armv7/
+        file waze-osm-tweak/.theos/obj/debug/armv7/WazeOSM.dylib
         
     - name: Download Waze IPA
       run: |
