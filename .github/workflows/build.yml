@@ -21,9 +21,9 @@ jobs:
     - name: Download iOS 6.1 SDK
       run: |
         mkdir -p $HOME/theos/sdks
-        curl -L -o $HOME/theos/sdks/iPhoneOS6.1.sdk.tar.xz \
-          "https://github.com/xybp888/iOS-SDKs/releases/download/iOS-SDKs/iPhoneOS6.1.sdk.tar.xz"
-        tar -xf $HOME/theos/sdks/iPhoneOS6.1.sdk.tar.xz -C $HOME/theos/sdks/
+        curl -L -o $HOME/theos/sdks/iPhoneOS6.1.sdk.zip \
+          "https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip"
+        unzip -q $HOME/theos/sdks/iPhoneOS6.1.sdk.zip -d $HOME/theos/sdks/
         ls -la $HOME/theos/sdks/
     
     - name: Create Makefile
