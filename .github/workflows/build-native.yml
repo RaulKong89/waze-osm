@@ -1,76 +1,15 @@
-name: Build WazeOSM Native IPA
-
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: macos-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install ldid
-      run: brew install ldid
-        
-    - name: Download iOS 6.1 SDK
-      run: |
-        mkdir -p /tmp/sdk
-        curl -L -o /tmp/iPhoneOS6.1.sdk.zip "https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip"
-        unzip -q /tmp/iPhoneOS6.1.sdk.zip -d /tmp/sdk/
-        ls /tmp/sdk/
-        
     - name: Compile
+      working-directory: waze-osm-native
       run: |
         SDK=/tmp/sdk/iPhoneOS6.1.sdk
-        INC="-I $GITHUB_WORKSPACE/waze-osm-native/Classes -I $SDK/usr/include"
+        INC="-I Classes -I $SDK/usr/include"
         CC="clang -arch armv7 -isysroot $SDK -miphoneos-version-min=6.0 $INC"
         
-        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/main.m -o /tmp/main.o
-        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/Classes/WazeAppDelegate.m -o /tmp/WazeAppDelegate.o
-        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/Classes/WazeMapViewController.m -o /tmp/WazeMapViewController.o
-        $CC -fno-objc-arc -c $GITHUB_WORKSPACE/waze-osm-native/Classes/WazeOSMServerClient.m -o /tmp/WazeOSMServerClient.o
+        $CC -fno-objc-arc -c main.m -o /tmp/main.o 2>&1
+        $CC -fno-objc-arc -c Classes/WazeAppDelegate.m -o /tmp/WazeAppDelegate.o 2>&1
+        $CC -fno-objc-arc -c Classes/WazeMapViewController.m -o /tmp/WazeMapViewController.o 2>&1
+        $CC -fno-objc-arc -c Classes/WazeOSMServerClient.m -o /tmp/WazeOSMServerClient.o 2>&1
         
-        # Link using Apple's ld
-        /usr/bin/ld -arch armv7 -ios_version_min 6.0 \
-          -o /tmp/WazeOSM \
-          /tmp/main.o /tmp/WazeAppDelegate.o /tmp/WazeMapViewController.o /tmp/WazeOSMServerClient.o \
-          -syslibroot $SDK \
-          -L$SDK/usr/lib \
-          -framework Foundation -framework UIKit -framework MapKit \
-          -framework CoreLocation -framework CoreGraphics -framework CFNetwork \
-          -lSystem
+        ld -arch armv7 -syslibroot $SDK -L$SDK/usr/lib -framework Foundation -framework UIKit -framework MapKit -framework CoreLocation -framework CoreGraphics -framework CFNetwork -lSystem -o /tmp/WazeOSM /tmp/main.o /tmp/WazeAppDelegate.o /tmp/WazeMapViewController.o /tmp/WazeOSMServerClient.o 2>&1
         
         file /tmp/WazeOSM
-        
-    - name: Create IPA
-      run: |
-        mkdir -p /tmp/Payload/WazeOSM.app
-        cp /tmp/WazeOSM /tmp/Payload/WazeOSM.app/WazeOSM
-        cp $GITHUB_WORKSPACE/waze-osm-native/Resources/Info.plist /tmp/Payload/WazeOSM.app/Info.plist
-        
-        # Sign
-        ldid -S /tmp/Payload/WazeOSM.app/WazeOSM
-        
-        # Package
-        cd /tmp && zip -r /tmp/WazeOSM.ipa Payload/
-        ls -la /tmp/WazeOSM.ipa
-        
-    - name: Upload IPA
-      uses: actions/upload-artifact@v4
-      with:
-        name: WazeOSM.ipa
-        path: /tmp/WazeOSM.ipa
-        
-    - name: Create Release
-      if: github.event_name == 'push'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ github.run_number }}
-        name: WazeOSM v${{ github.run_number }}
-        body: "WazeOSM - Native iOS 6 app with OpenStreetMap. No server dependency. Just install and use."
-        files: /tmp/WazeOSM.ipa
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
