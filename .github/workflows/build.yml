@@ -25,6 +25,13 @@ jobs:
         rm -rf ~/theos
         git clone --depth 1 https://github.com/theos/theos.git ~/theos
         
+    - name: Update Theos (download vendor)
+      run: |
+        export PATH=~/theos/bin:$PATH
+        cd ~/theos
+        ./bin/update-theos
+        ls -la ~/theos/vendor/ | head -5
+        
     - name: Download iOS 6.1 SDK
       run: |
         set -e
