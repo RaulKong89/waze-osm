@@ -1,101 +1,89 @@
-// WazeOSM Tweak - Fara substrate, doar Objective-C runtime
-// iOS 6 compatibil, Waze 3.9.6
+// WazeOSM Tweak - Hook Google Maps tile URLs to OpenStreetMap
+// iOS 6 compatible, Waze 3.9.6
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-// OSM Tile URL
-#define OSM_URL @"https://tile.openstreetmap.org/%d/%d/%d.png"
+// OSM Tile URL format
+#define OSM_TILE_URL @"https://tile.openstreetmap.org/%d/%d/%d.png"
 
-// Original method IMPs
-static IMP orig_URLForX = NULL;
-static IMP orig_URLForTile = NULL;
-
-// Swizzle method
-static void swizzleMethod(Class cls, SEL origSEL, SEL newSEL) {
-    Method origMethod = class_getClassMethod(cls, origSEL);
-    Method newMethod = class_getClassMethod(cls, newSEL);
-    
-    if (origMethod && newMethod) {
-        IMP newIMP = method_getImplementation(newMethod);
-        method_setImplementation(origMethod, newIMP);
-    }
-}
+// Original function pointers
+static id (*orig_URLForX)(id, SEL, int, int, int);
+static id (*orig_URLForTile)(id, SEL, int, int, int, int);
 
 // Hook: URLForX:y:zoom: -> OSM URL
-static id new_URLForX(id self, SEL _cmd, int x, int y, int zoom) {
-    NSString *url = [NSString stringWithFormat:OSM_URL, zoom, x, y];
-    return [NSURL URLWithString:url];
+static id hooked_URLForX(id self, SEL _cmd, int x, int y, int zoom) {
+    NSString *osmURL = [NSString stringWithFormat:OSM_TILE_URL, zoom, x, y];
+    NSLog(@"[WazeOSM] Tile %d/%d/%d -> OSM", zoom, x, y);
+    return [NSURL URLWithString:osmURL];
 }
 
-// Hook: URLForTile: -> OSM URL  
-static id new_URLForTile(id self, SEL _cmd, int x, int y, int zoom, int layer) {
-    NSString *url = [NSString stringWithFormat:OSM_URL, zoom, x, y];
-    return [NSURL URLWithString:url];
+// Hook: URLForTile: -> OSM URL
+static id hooked_URLForTile(id self, SEL _cmd, int x, int y, int zoom, int layer) {
+    NSString *osmURL = [NSString stringWithFormat:OSM_TILE_URL, zoom, x, y];
+    return [NSURL URLWithString:osmURL];
 }
 
-// Hook: NSURLRequest creation
-static id new_NSURLRequestWithURL(id self, SEL _cmd, NSURL *url) {
-    NSString *urlStr = [url absoluteString];
-    
-    // Check if Google Maps tile
-    if ([urlStr rangeOfString:@"google" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-        [urlStr rangeOfString:@"tile" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-        // Extract x,y,z from URL
-        // Format: ...&x=123&y=456&z=15
-        NSScanner *scanner = [NSScanner scannerWithString:urlStr];
-        int x = 0, y = 0, z = 0;
-        
-        [scanner scanUpToString:@"x=" intoString:nil];
-        if ([scanner scanString:@"x=" intoString:nil]) {
-            [scanner scanInt:&x];
-        }
-        
-        [scanner scanUpToString:@"y=" intoString:nil];
-        if ([scanner scanString:@"y=" intoString:nil]) {
-            [scanner scanInt:&y];
-        }
-        
-        [scanner scanUpToString:@"z=" intoString:nil];
-        if ([scanner scanString:@"z=" intoString:nil]) {
-            [scanner scanInt:&z];
-        }
-        
-        if (x > 0 && y > 0 && z > 0) {
-            NSString *osmUrl = [NSString stringWithFormat:OSM_URL, z, x, y];
-            return [NSURL URLWithString:osmUrl];
-        }
-    }
-    
-    return url;
+// Hook: GMSServices provideAPIKey - accept any key
+static BOOL hooked_provideAPIKey(id self, SEL _cmd, NSString *apiKey) {
+    NSLog(@"[WazeOSM] API Key accepted");
+    return YES;
+}
+
+// Hook: GMSMapView initWithFrame
+static id hooked_initWithFrame(id self, SEL _cmd, CGRect frame) {
+    id result = orig_initWithFrame(self, _cmd, frame);
+    NSLog(@"[WazeOSM] GMSMapView initialized");
+    return result;
 }
 
 // Constructor
 __attribute__((constructor))
-static void init() {
-    NSLog(@"[WazeOSM] Loading...");
+static void initialize() {
+    NSLog(@"[WazeOSM] Initializing...");
     
     // Hook GMSTileURLProvider
-    Class tileProvider = NSClassFromString(@"GMSTileURLProvider");
-    if (tileProvider) {
-        // Try to hook URLForX:y:zoom:
-        Method m = class_getClassMethod(tileProvider, @selector(URLForX:y:zoom:));
-        if (m) {
-            method_setImplementation(m, (IMP)new_URLForX);
+    Class tileURLProvider = NSClassFromString(@"GMSTileURLProvider");
+    if (tileURLProvider) {
+        Method urlForX = class_getClassMethod(tileURLProvider, @selector(URLForX:y:zoom:));
+        if (urlForX) {
+            orig_URLForX = (void *)method_getImplementation(urlForX);
+            method_setImplementation(urlForX, (IMP)hooked_URLForX);
             NSLog(@"[WazeOSM] Hooked URLForX:y:zoom:");
         }
-    }
-    
-    // Hook NSURL
-    Class nsurl = [NSURL class];
-    if (nsurl) {
-        Method m = class_getClassMethod(nsurl, @selector(URLWithString:));
-        if (m) {
-            // Can't easily swizzle NSURLWithString, but we can try
-            NSLog(@"[WazeOSM] Found NSURL URLWithString:");
+        
+        Method urlForTile = class_getClassMethod(tileURLProvider, @selector(URLForTile:));
+        if (urlForTile) {
+            orig_URLForTile = (void *)method_getImplementation(urlForTile);
+            method_setImplementation(urlForTile, (IMP)hooked_URLForTile);
+            NSLog(@"[WazeOSM] Hooked URLForTile:");
         }
     }
     
-    NSLog(@"[WazeOSM] Loaded successfully!");
+    // Hook GMSServices
+    Class gmsServices = NSClassFromString(@"GMSServices");
+    if (gmsServices) {
+        Method provideAPIKey = class_getClassMethod(gmsServices, @selector(provideAPIKey:));
+        if (provideAPIKey) {
+            method_setImplementation(provideAPIKey, (IMP)hooked_provideAPIKey);
+            NSLog(@"[WazeOSM] Hooked GMSServices provideAPIKey:");
+        }
+    }
+    
+    // Hook GMSMapView
+    Class mapView = NSClassFromString(@"GMSMapView");
+    if (mapView) {
+        Method initWithFrame = class_getInstanceMethod(mapView, @selector(initWithFrame:));
+        if (initWithFrame) {
+            orig_initWithFrame = (void *)method_getImplementation(initWithFrame);
+            method_setImplementation(initWithFrame, (IMP)hooked_initWithFrame);
+            NSLog(@"[WazeOSM] Hooked GMSMapView initWithFrame:");
+        }
+    }
+    
+    NSLog(@"[WazeOSM] Initialized successfully!");
 }
+
+// Original function storage
+static id (*orig_initWithFrame)(id, SEL, CGRect);
