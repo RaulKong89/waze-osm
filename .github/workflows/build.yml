@@ -12,54 +12,54 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Install Theos
+    - name: Install Theos and ldid
       run: |
-        git clone https://github.com/theos/theos.git $HOME/theos
-        git clone https://github.com/theos/vendor.git $HOME/theos/vendor
-        cd $HOME/theos/vendor && git checkout $(git describe --tags --abbrev=0)
-        echo "$HOME/theos/bin" >> $GITHUB_PATH
         brew install ldid
+        rm -rf $HOME/theos
+        git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
+        git clone --depth 1 https://github.com/theos/vendor.git /tmp/theos-vendor
+        mkdir -p $HOME/theos/vendor
+        cp -r /tmp/theos-vendor/* $HOME/theos/vendor/
+        echo "$HOME/theos/bin" >> $GITHUB_PATH
     
     - name: Download iOS 6.1 SDK
       run: |
         mkdir -p $HOME/theos/sdks
-        curl -L -o $HOME/theos/sdks/iPhoneOS6.1.sdk.zip \
-          "https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip"
+        curl -L -o $HOME/theos/sdks/iPhoneOS6.1.sdk.zip "https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip"
         python3 -m zipfile -e $HOME/theos/sdks/iPhoneOS6.1.sdk.zip $HOME/theos/sdks/
-        ls -la $HOME/theos/sdks/
     
     - name: Create Makefile
       working-directory: waze-osm-tweak
       run: |
-        printf 'THEOS = %s/theos\n' "$HOME" > Makefile
-        printf 'SDK_VERSION = 6.1\n' >> Makefile
-        printf 'ARCHS = armv7\n' >> Makefile
-        printf 'TARGET = iphone:clang:6.1:6.1\n' >> Makefile
-        printf 'include $(THEOS)/makefiles/common.mk\n' >> Makefile
-        printf 'TWEAK_NAME = WazeOSM\n' >> Makefile
-        printf 'WazeOSM_FILES = Tweak.xm\n' >> Makefile
-        printf 'WazeOSM_FRAMEWORKS = Foundation UIKit CoreGraphics CoreLocation\n' >> Makefile
-        printf 'include $(THEOS)/makefiles/tweak.mk\n' >> Makefile
+        python3 << 'PYEOF'
+        with open('Makefile', 'w') as f:
+            f.write('THEOS = $(HOME)/theos\n')
+            f.write('SDK_VERSION = 6.1\n')
+            f.write('ARCHS = armv7\n')
+            f.write('TARGET = iphone:clang:6.1:6.1\n')
+            f.write('include $(THEOS)/makefiles/common.mk\n')
+            f.write('TWEAK_NAME = WazeOSM\n')
+            f.write('WazeOSM_FILES = Tweak.xm\n')
+            f.write('WazeOSM_FRAMEWORKS = Foundation UIKit CoreGraphics CoreLocation\n')
+            f.write('include $(THEOS)/makefiles/tweak.mk\n')
+        print("Makefile created")
+        PYEOF
         cat Makefile
-      env:
-        HOME: /Users/runner
     
     - name: Build WazeOSM dylib
+      working-directory: waze-osm-tweak
       run: |
-        cd waze-osm-tweak
+        export THEOS=$HOME/theos
         make clean
         make
     
     - name: Download Waze IPA
       run: |
-        curl -L -o waze.ipa \
-          "https://archive.org/download/waze_3.9.6_ios_6.0/waze_3.9.6.ipa"
+        curl -L -o waze.ipa "https://archive.org/download/waze_3.9.6_ios_6.0/waze_3.9.6.ipa"
     
     - name: Inject dylib into IPA
       run: |
-        python3 waze-osm-tweak/inject_dylib.py waze.ipa \
-          waze-osm-tweak/.theos/obj/debug/armv7/WazeOSM.dylib \
-          -o Waze-OSM-3.9.6.ipa
+        python3 waze-osm-tweak/inject_dylib.py waze.ipa waze-osm-tweak/.theos/obj/debug/armv7/WazeOSM.dylib -o Waze-OSM-3.9.6.ipa
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -73,10 +73,7 @@ jobs:
       with:
         tag_name: v${{ github.run_number }}
         name: Waze OSM v${{ github.run_number }}
-        body: |
-          Waze 3.9.6 with OpenStreetMap tiles
-          - iOS 6+ compatible
-          - Requires jailbreak with Cydia Substrate
+        body: "Waze 3.9.6 with OpenStreetMap tiles. iOS 6+ compatible. Requires jailbreak with Cydia Substrate."
         files: Waze-OSM-3.9.6.ipa
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
