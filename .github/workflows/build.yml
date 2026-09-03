@@ -19,14 +19,16 @@ jobs:
     - name: Clone Theos
       run: |
         rm -rf $HOME/theos
-        git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
+        git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/theos/theos.git $HOME/theos
         echo "$HOME/theos/bin" >> $GITHUB_PATH
         
     - name: Install vendor headers
       run: |
-        git clone --depth 1 https://github.com/theos/vendor.git /tmp/theos-vendor
-        cp -r /tmp/theos-vendor $HOME/theos/vendor
-        ls $HOME/theos/vendor/ | head -5
+        if [ ! -d "$HOME/theos/vendor" ]; then
+          git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/theos/vendor.git /tmp/theos-vendor
+          cp -r /tmp/theos-vendor $HOME/theos/vendor
+        fi
+        ls $HOME/theos/vendor/ | head -5 || echo "no vendor dir"
         
     - name: Download iOS 6.1 SDK
       run: |
