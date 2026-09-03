@@ -46,7 +46,7 @@ jobs:
         
     - name: Download Waze IPA
       run: |
-        curl -L -o waze.ipa "https://archive.org/download/waze_3.9.6_ios_6.0/waze_3.9.6.ipa"
+        curl -L -o waze.ipa "https://github.com/RaulKong89/waze-osm/releases/download/v0.1.0/waze_3.9.6.ipa"
         ls -la waze.ipa
         file waze.ipa
         
